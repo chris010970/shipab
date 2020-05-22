@@ -49,12 +49,11 @@ class ShipDataset( utils.Dataset ):
                     polygons.append( row[ 'EncodedPixels'].split() )
 
             # call base function to add info
-            self.add_image(
-                "ship",
-                image_id=image_filename,  # use file name as a unique image id
-                path=image_path,
-                width=self._shape[1], height=self._shape[0],
-                polygons=polygons)
+            self.add_image( "ship",
+                            image_id=image_filename,  # use file name as a unique image id
+                            path=os.path.join(image_path, image_filename ),
+                            width=self._shape[1], height=self._shape[0],
+                            polygons=polygons)
 
         return
 
