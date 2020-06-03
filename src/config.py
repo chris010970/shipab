@@ -2,7 +2,7 @@
 import numpy as np
 from mrcnn.config import Config
 
-class ShipConfig(Config):
+class ShipConfig(Config): 
 
     """
     Configuration for training
@@ -20,7 +20,7 @@ class ShipConfig(Config):
     # Adjust based on your GPU memory and image sizes. Use the highest
     # number that your GPU can handle for best performance.
     # IMAGES_PER_GPU = 2
-    IMAGES_PER_GPU = 8
+    IMAGES_PER_GPU = 1
 
     # Number of training steps per epoch
     # This doesn't need to match the size of the training set. Tensorboard

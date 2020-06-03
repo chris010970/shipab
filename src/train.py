@@ -1,8 +1,12 @@
 import os
+import time
+import random
+import argparse
+
+import mrcnn.model as modellib
 
 from config import ShipConfig
 from dataset import ShipDataset
-from mrcnn import model as modellib, utils
 
 class Train:
 
@@ -14,13 +18,18 @@ class Train:
 
         # initialise config
         self._config = ShipConfig()
+
+        # initialise model with configuration - write model and logs to out path
+        self._model = modellib.MaskRCNN(    mode="training", 
+                                            config=self._config, 
+                                            model_dir=args.out_path )
         return
 
 
     def process( self, args ):
 
         """
-        Train the model.
+        setup and initialise mask-rcnn objects and commence training
         """
         
         # load training dataset.
@@ -33,43 +42,87 @@ class Train:
         test_ds.load_info( os.path.join( args.data_path, 'test' ) )
         test_ds.prepare()
 
-        # initialise model with configuration - write model and logs to out path
-        model = modellib.MaskRCNN(  mode="training", 
-                                    config=self._config, 
-                                    model_dir=args.out_path )
-
+        # load weights
         if args.model_pathname == 'last':
 
-            # load last trained model and continue training
-            model.load_weights( model.find_last(), by_name=True )
-
+            # attempt to load last set of weights and continue training
+            self._model.load_weights( self._model.find_last(), by_name=True )
+        
         else:
 
-            # load weights trained on MS COCO - skip incompatible layers due to different number of classes
-            model.load_weights( args.model_pathname,
-                                by_name=True,
-                                exclude=[
-                                    "mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask",
-                                    "rpn_model"  # because anchor's ratio has been changed
-                                ] )
+            if os.path.basename( args.model_pathname ) == 'mask_rcnn_coco.h5':
+
+                # load original COCO weights - skip incompatible layers due to different number of classes
+                self._model.load_weights(   args.model_pathname,
+                                            by_name=True,
+                                            exclude=[
+                                                "mrcnn_class_logits", "mrcnn_bbox_fc", "mrcnn_bbox", "mrcnn_mask",
+                                                "rpn_model"  # because anchor's ratio has been changed
+                                            ] )
+            else:
+
+                # load weights direct from pathname
+                self._model.load_weights( args.model_pathname, by_name=True )
 
         # commence training - top layer only
         print("Training network heads")
-        model.train(    train_ds, 
-                        test_ds,
-                        learning_rate=self._config.LEARNING_RATE,
-                        epochs=args.epochs,
-                        layers='heads' )
+        self._model.train(  train_ds, 
+                            test_ds,
+                            learning_rate=self._config.LEARNING_RATE,
+                            epochs=args.epochs,
+                            layers='heads' )
 
         # fine tune all layers
         print("Training all layers")
-        model.train(    train_ds, 
-                        test_ds,
-                        learning_rate=self._config.LEARNING_RATE / 10,
-                        epochs=10,
-                        layers='all' )
+        self._model.train(  train_ds, 
+                            test_ds,
+                            learning_rate=self._config.LEARNING_RATE / 10,
+                            epochs=2,
+                            layers='all' )
 
         # save final weights
-        model.keras_model.save_weights( args.model_pathname.replace( '.h5', '-final.h5' ) )
-
+        if args.model_pathname is not None:
+            pathname = args.model_pathname.replace( '.h5', '-{}-{}.h5'.format ( args.epochs, time.strftime("%Y%m%d-%H%M%S") ) )
+            self._model.keras_model.save_weights( pathname )
+        
         return
+
+
+def parseArguments(args=None):
+
+    """
+    parse command line arguments
+    """
+
+    # parse configuration
+    parser = argparse.ArgumentParser(description='preparation')
+    parser.add_argument('data_path', action="store")
+    parser.add_argument('model_pathname', action="store")
+    parser.add_argument('out_path', action="store")
+
+    # optional settings
+    parser.add_argument('--epochs', action="store", default=100 )
+
+    return parser.parse_args(args)
+
+
+def main():
+
+    """
+    main path of execution
+    """
+
+    # parse arguments
+    args = parseArguments()
+    obj = Train( args )
+
+    # execute training
+    obj.process( args )
+
+    return
+
+
+# execute main
+if __name__ == '__main__':
+    main()
+
